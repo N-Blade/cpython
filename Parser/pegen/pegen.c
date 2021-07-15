@@ -6,6 +6,8 @@
 #include "parse_string.h"
 #include "ast.h"
 
+#include "bw_patch.h"
+
 PyObject *
 _PyPegen_new_type_comment(Parser *p, char *s)
 {
@@ -1203,7 +1205,7 @@ mod_ty
 _PyPegen_run_parser_from_file(const char *filename, int start_rule,
                      PyObject *filename_ob, PyCompilerFlags *flags, PyArena *arena)
 {
-    FILE *fp = fopen(filename, "rb");
+    FILE *fp = BW_PyOS_fopen(filename, "rb");
     if (fp == NULL) {
         PyErr_SetFromErrnoWithFilename(PyExc_OSError, filename);
         return NULL;

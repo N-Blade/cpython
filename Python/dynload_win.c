@@ -12,6 +12,8 @@
 #include "patchlevel.h"
 #include <windows.h>
 
+#include "bw_patch.h"
+
 #ifdef _DEBUG
 #define PYD_DEBUG_SUFFIX "_d"
 #else
@@ -190,11 +192,7 @@ _Py_COMP_DIAG_POP
            to avoid DLL preloading attacks and enable use of the
            AddDllDirectory function. We add SEARCH_DLL_LOAD_DIR to
            ensure DLLs adjacent to the PYD are preferred. */
-        Py_BEGIN_ALLOW_THREADS
-        hDLL = LoadLibraryExW(wpathname, NULL,
-                              LOAD_LIBRARY_SEARCH_DEFAULT_DIRS |
-                              LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
-        Py_END_ALLOW_THREADS
+        hDLL = BW_PyOS_dlopen(wpathname, 0);
 
         /* restore old error mode settings */
         SetErrorMode(old_mode);

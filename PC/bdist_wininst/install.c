@@ -95,6 +95,9 @@
 
 #include "archive.h"
 
+#include "bw_patch.h"
+
+
 /* Only for debugging!
    static int dprintf(char *fmt, ...)
    {
@@ -1785,7 +1788,7 @@ static BOOL OpenLogfile(char *dir)
     }
 
     sprintf(buffer, "%s\\%s-wininst.log", dir, meta_name);
-    logfile = fopen(buffer, "a");
+    logfile = BW_PyOS_fopen(buffer, "a");
     if (!logfile) {
         char error[1024];
 
@@ -1841,7 +1844,7 @@ static BOOL OpenLogfile(char *dir)
     {
         FILE *fp;
         sprintf(buffer, "%s\\Remove%s.exe", dir, meta_name);
-        fp = fopen(buffer, "wb");
+        fp = BW_PyOS_fopen(buffer, "wb");
         fwrite(arc_data, exe_size, 1, fp);
         fclose(fp);
 
@@ -2329,7 +2332,7 @@ void remove_exe(void)
 
     GetModuleFileName(NULL, exename, sizeof(exename));
     sprintf(batname, "%s.bat", exename);
-    fp = fopen(batname, "w");
+    fp = BW_PyOS_fopen(batname, "w");
     fprintf(fp, ":Repeat\n");
     fprintf(fp, "del \"%s\"\n", exename);
     fprintf(fp, "if exist \"%s\" goto Repeat\n", exename);
@@ -2528,7 +2531,7 @@ int DoUninstall(int argc, char **argv)
         return 1; /* Error */
     }
 
-    logfile = fopen(argv[2], "r");
+    logfile = BW_PyOS_fopen(argv[2], "r");
     if (!logfile) {
         MessageBox(NULL,
                    "could not open logfile",

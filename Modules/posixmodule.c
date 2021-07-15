@@ -21,6 +21,8 @@
 #  include <pathcch.h>
 #endif
 
+#include "bw_patch.h"
+
 #include "pycore_ceval.h"         // _PyEval_ReInitThreads()
 #include "pycore_import.h"        // _PyImport_ReInitLock()
 #include "pycore_pystate.h"       // _PyInterpreterState_GET()
@@ -471,7 +473,12 @@ extern char        *ctermid_r(char *);
 #undef STAT
 #undef FSTAT
 #undef STRUCT_STAT
-#ifdef MS_WINDOWS
+#if defined(PY_EXTERNAL_FOPEN)
+#  define STAT BW_PyOS_stat
+#  define LSTAT BW_PyOS_stat
+#  define FSTAT BW_PyOS_fstat
+#  define STRUCT_STAT struct stat
+#elif defined(MS_WINDOWS)
 #  define STAT win32_stat
 #  define LSTAT win32_lstat
 #  define FSTAT _Py_fstat_noraise
@@ -3711,7 +3718,7 @@ posix_getcwd(int use_bytes)
     DWORD len;
 
     Py_BEGIN_ALLOW_THREADS
-    len = GetCurrentDirectoryW(Py_ARRAY_LENGTH(wbuf), wbuf);
+    len = BW_PyOS_getcwd(Py_ARRAY_LENGTH(wbuf), wbuf);
     /* If the buffer is large enough, len does not include the
        terminating \0. If the buffer is too small, len includes
        the space needed for the terminator. */
@@ -3775,7 +3782,7 @@ posix_getcwd(int use_bytes)
         }
         buf = newbuf;
 
-        cwd = getcwd(buf, buflen);
+        cwd = BW_PyOS_getcwd(buf, buflen);
     } while (cwd == NULL && errno == ERANGE);
     Py_END_ALLOW_THREADS
 
@@ -3949,7 +3956,6 @@ os_link_impl(PyObject *module, path_t *src, path_t *dst, int src_dir_fd,
     Py_RETURN_NONE;
 }
 #endif
-
 
 #if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
 static PyObject *
@@ -4185,6 +4191,39 @@ entries '.' and '..' even if they are present in the directory.
 
 [clinic start generated code]*/
 
+static PyObject* _bw_listdir(path_t* path, PyObject* list) {
+#ifdef HAVE_FDOPENDIR
+    if (path->fd != -1) {
+        PyErr_SetString(PyExc_TypeError,
+            "listdir: path should be string, bytes, os.PathLike or None, not int");
+        return NULL;
+    } else
+#endif
+    {
+        const char *name;
+        int return_str; /* if false, return bytes */
+        if (path->narrow) {
+            name = path->narrow;
+            /* only return bytes if they specified a bytes-like object */
+            return_str = !PyObject_CheckBuffer(path->object);
+        } else {
+            name = ".";
+            return_str = 1;
+        }
+
+        int ignore_result_and_use_default = 0;
+        PyObject* result = BW_PyOS_listdir( name, return_str, &ignore_result_and_use_default);
+        if (!ignore_result_and_use_default) {
+            return result;
+        }
+#if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
+        return _listdir_windows_no_opendir(path, NULL);
+#else
+        return _posix_listdir(path, NULL);
+#endif
+    }
+}
+
 static PyObject *
 os_listdir_impl(PyObject *module, path_t *path)
 /*[clinic end generated code: output=293045673fcd1a75 input=e3f58030f538295d]*/
@@ -4193,11 +4232,7 @@ os_listdir_impl(PyObject *module, path_t *path)
                     path->object ? path->object : Py_None) < 0) {
         return NULL;
     }
-#if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
-    return _listdir_windows_no_opendir(path, NULL);
-#else
-    return _posix_listdir(path, NULL);
-#endif
+    return _bw_listdir(path, NULL);
 }
 
 #ifdef MS_WINDOWS
@@ -9087,12 +9122,12 @@ os_open_impl(PyObject *module, path_t *path, int flags, int mode, int dir_fd)
     do {
         Py_BEGIN_ALLOW_THREADS
 #ifdef MS_WINDOWS
-        fd = _wopen(path->wide, flags, mode);
+        fd = BW_PyOS_open(path->wide, flags, mode);
 #else
 #ifdef HAVE_OPENAT
         if (dir_fd != DEFAULT_DIR_FD) {
             if (HAVE_OPENAT_RUNTIME) {
-                fd = openat(dir_fd, path->narrow, flags, mode);
+                fd = BW_PyOS_openat(dir_fd, path->narrow, flags, mode);
 
             } else {
                 openat_unavailable = 1;
@@ -9100,7 +9135,7 @@ os_open_impl(PyObject *module, path_t *path, int flags, int mode, int dir_fd)
             }
         } else
 #endif /* HAVE_OPENAT */
-            fd = open(path->narrow, flags, mode);
+            fd = BW_PyOS_open(path->narrow, flags, mode);
 #endif /* !MS_WINDOWS */
         Py_END_ALLOW_THREADS
     } while (fd < 0 && errno == EINTR && !(async_err = PyErr_CheckSignals()));

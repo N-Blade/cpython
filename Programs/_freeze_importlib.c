@@ -51,7 +51,7 @@ main(int argc, char *argv[])
     name = argv[1];
     inpath = argv[2];
     outpath = argv[3];
-    infile = fopen(inpath, "rb");
+    infile = BW_PyOS_fopen(inpath, "rb");
     if (infile == NULL) {
         fprintf(stderr, "cannot open '%s' for reading\n", inpath);
         goto error;
@@ -117,7 +117,7 @@ main(int argc, char *argv[])
 
     /* Open the file in text mode. The hg checkout should be using the eol extension,
        which in turn should cause the EOL style match the C library's text mode */
-    outfile = fopen(outpath, "w");
+    outfile = BW_PyOS_fopen(outpath, "w");
     if (outfile == NULL) {
         fprintf(stderr, "cannot open '%s' for writing\n", outpath);
         goto error;

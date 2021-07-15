@@ -9,6 +9,8 @@
 #include <sys/types.h>
 #include <string.h>
 
+#include "bw_patch.h"
+
 #ifdef __APPLE__
 #  include <mach-o/dyld.h>
 #endif
@@ -160,7 +162,7 @@ _Py_wstat(const wchar_t* path, struct stat *buf)
         errno = EINVAL;
         return -1;
     }
-    err = stat(fname, buf);
+    err = BW_PyOS_stat(fname, buf);
     PyMem_RawFree(fname);
     return err;
 }

@@ -25,6 +25,8 @@ extern int winerror_to_errno(int);
 #include <fcntl.h>
 #endif /* HAVE_FCNTL_H */
 
+#include "bw_patch.h"
+
 #ifdef O_CLOEXEC
 /* Does open() support the O_CLOEXEC flag? Possible values:
 
@@ -1163,7 +1165,7 @@ _Py_COMP_DIAG_POP
     if (wpath == NULL)
         return -2;
 
-    err = _wstat(wpath, &wstatbuf);
+    err = BW_PyOS_stat(wpath, &wstatbuf);
     if (!err)
         statbuf->st_mode = wstatbuf.st_mode;
     return err;
@@ -1182,7 +1184,7 @@ _Py_COMP_DIAG_POP
         return -2;
     }
 
-    ret = stat(cpath, statbuf);
+    ret = BW_PyOS_stat(cpath, statbuf);
     Py_DECREF(bytes);
     return ret;
 #endif
@@ -1441,7 +1443,7 @@ _Py_open_impl(const char *pathname, int flags, int gil_held)
 
         do {
             Py_BEGIN_ALLOW_THREADS
-            fd = open(pathname, flags);
+            fd = BW_PyOS_open(pathname, flags);
             Py_END_ALLOW_THREADS
         } while (fd < 0
                  && errno == EINTR && !(async_err = PyErr_CheckSignals()));
@@ -1457,7 +1459,7 @@ _Py_open_impl(const char *pathname, int flags, int gil_held)
         Py_DECREF(pathname_obj);
     }
     else {
-        fd = open(pathname, flags);
+        fd = BW_PyOS_open(pathname, flags);
         if (fd < 0)
             return -1;
     }
@@ -1528,10 +1530,10 @@ _Py_wfopen(const wchar_t *path, const wchar_t *mode)
     if (cpath == NULL) {
         return NULL;
     }
-    f = fopen(cpath, cmode);
+    f = BW_PyOS_fopen(cpath, cmode);
     PyMem_RawFree(cpath);
 #else
-    f = _wfopen(path, mode);
+    f = BW_PyOS_fopen(path, mode);
 #endif
     if (f == NULL)
         return NULL;
@@ -1560,7 +1562,7 @@ _Py_fopen(const char *pathname, const char *mode)
     }
     Py_DECREF(pathname_obj);
 
-    FILE *f = fopen(pathname, mode);
+    FILE *f = BW_PyOS_fopen(pathname, mode);
     if (f == NULL)
         return NULL;
     if (make_non_inheritable(fileno(f)) < 0) {
@@ -1640,9 +1642,7 @@ _Py_COMP_DIAG_POP
     }
 
     do {
-        Py_BEGIN_ALLOW_THREADS
-        f = fopen(path_bytes, mode);
-        Py_END_ALLOW_THREADS
+        f = BW_PyOS_fopen(path_bytes, mode);
     } while (f == NULL
              && errno == EINTR && !(async_err = PyErr_CheckSignals()));
 
@@ -2030,13 +2030,13 @@ _Py_wgetcwd(wchar_t *buf, size_t buflen)
 {
 #ifdef MS_WINDOWS
     int ibuflen = (int)Py_MIN(buflen, INT_MAX);
-    return _wgetcwd(buf, ibuflen);
+    return BW_PyOS_getcwd(buf, ibuflen);
 #else
     char fname[MAXPATHLEN];
     wchar_t *wname;
     size_t len;
 
-    if (getcwd(fname, Py_ARRAY_LENGTH(fname)) == NULL)
+    if (BW_PyOS_getcwd(fname, Py_ARRAY_LENGTH(fname)) == NULL)
         return NULL;
     wname = Py_DecodeLocale(fname, &len);
     if (wname == NULL)

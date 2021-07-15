@@ -22,6 +22,8 @@
 #include <dlfcn.h>
 #endif
 
+#include "bw_patch.h"
+
 #if (defined(__OpenBSD__) || defined(__NetBSD__)) && !defined(__ELF__)
 #define LEAD_UNDERSCORE "_"
 #else
@@ -97,7 +99,7 @@ _PyImport_FindSharedFuncptr(const char *prefix,
 
     dlopenflags = _PyInterpreterState_GET()->dlopenflags;
 
-    handle = dlopen(pathname, dlopenflags);
+    handle = BW_PyOS_dlopen(pathname, dlopenflags);
 
     if (handle == NULL) {
         PyObject *mod_name;
