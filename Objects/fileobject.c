@@ -375,9 +375,15 @@ open_the_file(PyFileObject *f, char *name, char *mode)
     }
 #endif
     if (NULL == f->f_fp && NULL != name) {
-        FILE_BEGIN_ALLOW_THREADS(f)
-        f->f_fp = fopen(name, newmode);
-        FILE_END_ALLOW_THREADS(f)
+#ifndef PY_EXTERNAL_FOPEN
+        /* BigWorld: Our PyOS_fopen() already does the equivalent of
+         * Py_BEGIN_ALLOW_THREADS and Py_END_ALLOW_THREADS*/
+        Py_BEGIN_ALLOW_THREADS
+#endif
+            f->f_fp = PyOS_fopen(name, newmode);
+#ifndef PY_EXTERNAL_FOPEN
+        Py_END_ALLOW_THREADS
+#endif
     }
 
     if (f->f_fp == NULL) {

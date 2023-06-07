@@ -18,6 +18,19 @@
  #endif
 #endif
 
+#ifndef BW_DONT_WRAP_MALLOC 	// used when compiling the pgen binary when
+// Python is built.
+
+void* malloc_py(size_t size);
+void free_py(void* mem);
+void* realloc_py(void* mem, size_t size);
+
+#define malloc malloc_py
+#define realloc realloc_py
+#define free free_py
+
+#endif // BW_DONT_WRAP_MALLOC
+
 #ifdef WITH_PYMALLOC
 
 #ifdef HAVE_MMAP

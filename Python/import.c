@@ -812,7 +812,7 @@ check_compiled_module(char *pathname, time_t mtime, char *cpathname)
     long magic;
     long pyc_mtime;
 
-    fp = fopen(cpathname, "rb");
+    fp = PyOS_fopen(cpathname, "rb");
     if (fp == NULL)
         return NULL;
     magic = PyMarshal_ReadLongFromFile(fp);
@@ -913,7 +913,11 @@ parse_source_module(const char *pathname, FILE *fp)
 static FILE *
 open_exclusive(char *filename, mode_t mode)
 {
-#if defined(O_EXCL)&&defined(O_CREAT)&&defined(O_WRONLY)&&defined(O_TRUNC)
+#if defined(PY_EXTERNAL_FOPEN)
+    // the external fopen takes care of opening it exclusively
+    return PyOS_fopen(filename, "wb");
+
+#elif defined(O_EXCL)&&defined(O_CREAT)&&defined(O_WRONLY)&&defined(O_TRUNC)
     /* Use O_EXCL to avoid a race condition when another process tries to
        write the same file.  When that happens, our open() call fails,
        which is just fine (since it's only a cache).
@@ -937,7 +941,7 @@ open_exclusive(char *filename, mode_t mode)
     return fdopen(fd, "wb");
 #else
     /* Best we can do -- on Windows this can't happen anyway */
-    return fopen(filename, "wb");
+    return PyOS_fopen(filename, "wb");
 #endif
 }
 
@@ -1538,7 +1542,9 @@ find_module(char *fullname, char *subname, PyObject *path, char *buf,
 
         /* Check for package import (buf holds a directory name,
            and there's an __init__ module in that directory */
-        if (isdir(buf) &&         /* it's an existing directory */
+        if (PyOS_statType(buf) == 1 &&			/* is a directory */
+//		if (stat(buf, &statbuf) == 0 &&         /* it exists */
+//		    S_ISDIR(statbuf.st_mode) &&         /* it's a directory */
             case_ok(buf, len, namelen, name)) { /* case matches */
             if (find_init_module(buf)) { /* and has __init__.py */
                 Py_XDECREF(copy);
@@ -1597,7 +1603,7 @@ find_module(char *fullname, char *subname, PyObject *path, char *buf,
             filemode = fdp->mode;
             if (filemode[0] == 'U')
                 filemode = "r" PY_STDIOTEXTMODE;
-            fp = fopen(buf, filemode);
+            fp = PyOS_fopen(buf, filemode);
             if (fp != NULL) {
                 if (case_ok(buf, len, namelen, name))
                     break;
@@ -1702,8 +1708,16 @@ PyAPI_FUNC(int) _PyImport_IsScript(struct filedescr * fd)
 #include "oslib/osfscontrol.h"
 #endif
 
-static int
-case_ok(char *buf, Py_ssize_t len, Py_ssize_t namelen, char *name)
+#ifdef PY_EXTERNAL_FOPEN
+static int case_ok(char* buf, Py_ssize_t len, Py_ssize_t namelen, char* name)
+{
+    return 1;
+}
+int case_ok_unused
+#else
+static int case_ok
+#endif
+(char *buf, Py_ssize_t len, Py_ssize_t namelen, char *name)
 {
 /* Pick a platform-specific implementation; the sequence of #if's here should
  * match the sequence just above.
@@ -1846,7 +1860,7 @@ find_init_module(char *buf)
     const size_t save_len = strlen(buf);
     size_t i = save_len;
     char *pname;  /* pointer to start of __init__ */
-    struct stat statbuf;
+    //struct stat statbuf;
 
 /*      For calling case_ok(buf, len, namelen, name):
  *      /a/b/c/d/e/f/g/h/i/j/k/some_long_module_name.py\0
@@ -1861,7 +1875,7 @@ find_init_module(char *buf)
     buf[i++] = SEP;
     pname = buf + i;
     strcpy(pname, "__init__.py");
-    if (stat(buf, &statbuf) == 0) {
+    if (PyOS_statType(buf) >= 0) {
         if (case_ok(buf,
                     save_len + 9,               /* len("/__init__") */
                 8,                              /* len("__init__") */
@@ -1872,7 +1886,7 @@ find_init_module(char *buf)
     }
     i += strlen(pname);
     strcpy(buf+i, Py_OptimizeFlag ? "o" : "c");
-    if (stat(buf, &statbuf) == 0) {
+    if (PyOS_statType(buf) >= 0) {
         if (case_ok(buf,
                     save_len + 9,               /* len("/__init__") */
                 8,                              /* len("__init__") */
@@ -3111,7 +3125,7 @@ get_file(char *pathname, PyObject *fob, char *mode)
     if (fob == NULL) {
         if (mode[0] == 'U')
             mode = "r" PY_STDIOTEXTMODE;
-        fp = fopen(pathname, mode);
+        fp = PyOS_fopen(pathname, mode);
         if (fp == NULL)
             PyErr_SetFromErrno(PyExc_IOError);
     }
@@ -3368,11 +3382,24 @@ NullImporter_init(NullImporter *self, PyObject *args, PyObject *kwds)
         PyErr_SetString(PyExc_ImportError, "empty pathname");
         return -1;
     } else {
-        if(isdir(path)) {
+        /* Begin BigWorld modification - replace filesystem */
+        if (PyOS_statType(path) == 1)
+        {
+            /* it's a directory */
             PyErr_SetString(PyExc_ImportError,
-                            "existing directory");
+                "existing directory");
             return -1;
         }
+        /* End BigWorld modification - Original code commented out below */
+#if 0
+        if (isdir(path)) {
+            PyErr_SetString(PyExc_ImportError,
+                "existing directory");
+            return -1;
+        }
+    }
+#endif // End code commented out by BigWorld.
+        
     }
     return 0;
 }
@@ -3518,6 +3545,17 @@ PyImport_AppendInittab(const char *name, void (*initfunc)(void))
 
     return PyImport_ExtendInittab(newtab);
 }
+
+#ifdef HAVE_STAT
+int PyOS_statTypeDefault(const char* filename)
+{
+    struct stat statbuf;
+    if (stat(filename, &statbuf) != 0) return -1;
+    if (S_ISREG(statbuf.st_mode)) return 0;
+    if (S_ISDIR(statbuf.st_mode)) return 1;
+    return 2;
+}
+#endif
 
 #ifdef __cplusplus
 }

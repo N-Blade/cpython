@@ -42,6 +42,25 @@ static int strcasecmp (char *string1, char *string2)
     return (first - second);
 }
 
+void* PyOS_dlopenDefault(const char* pathname, int flags)
+{
+    HINSTANCE hDLL = NULL;
+    char pathbuf[260];
+    LPTSTR dummy;
+
+    /* We use LoadLibraryEx so Windows looks for dependent DLLs
+        in directory of pathname first.  However, Windows95
+        can sometimes not work correctly unless the absolute
+        path is used.  If GetFullPathName() fails, the LoadLibrary
+        will certainly fail too, so use its error code */
+    if (!GetFullPathName(pathname,
+        sizeof(pathbuf),
+        pathbuf,
+        &dummy)) return NULL;
+    /* XXX This call doesn't exist in Windows CE */
+    return (void*)LoadLibraryEx(pathname, NULL,
+        LOAD_WITH_ALTERED_SEARCH_PATH);
+}
 
 /* Function to return the name of the "python" DLL that the supplied module
    directly imports.  Looks through the list of imported modules and
@@ -164,111 +183,84 @@ static char *GetPythonImport (HINSTANCE hModule)
 
 
 dl_funcptr _PyImport_GetDynLoadFunc(const char *fqname, const char *shortname,
-                                    const char *pathname, FILE *fp)
+				    const char *pathname, FILE *fp)
 {
-    dl_funcptr p;
-    char funcname[258], *import_python;
+	dl_funcptr p;
+	char funcname[258], *import_python;
 
-    PyOS_snprintf(funcname, sizeof(funcname), "init%.200s", shortname);
+	PyOS_snprintf(funcname, sizeof(funcname), "init%.200s", shortname);
 
-    {
-        HINSTANCE hDLL = NULL;
-        char pathbuf[260];
-        LPTSTR dummy;
-        unsigned int old_mode;
-        ULONG_PTR cookie = 0;
-        /* We use LoadLibraryEx so Windows looks for dependent DLLs
-            in directory of pathname first.  However, Windows95
-            can sometimes not work correctly unless the absolute
-            path is used.  If GetFullPathName() fails, the LoadLibrary
-            will certainly fail too, so use its error code */
+	{
+		HINSTANCE hDLL = NULL;
+		hDLL = (HANDLE)PyOS_dlopen( pathname, 0 );
+		if (hDLL==NULL){
+			char errBuf[256];
+			unsigned int errorCode;
 
-        /* Don't display a message box when Python can't load a DLL */
-        old_mode = SetErrorMode(SEM_FAILCRITICALERRORS);
+			/* Get an error string from Win32 error code */
+			char theInfo[256]; /* Pointer to error text
+					      from system */
+			int theLength; /* Length of error text */
 
-        if (GetFullPathName(pathname,
-                            sizeof(pathbuf),
-                            pathbuf,
-                            &dummy)) {
-            ULONG_PTR cookie = _Py_ActivateActCtx();
-            /* XXX This call doesn't exist in Windows CE */
-            hDLL = LoadLibraryEx(pathname, NULL,
-                                 LOAD_WITH_ALTERED_SEARCH_PATH);
-            _Py_DeactivateActCtx(cookie);
-        }
+			errorCode = GetLastError();
 
-        /* restore old error mode settings */
-        SetErrorMode(old_mode);
+			theLength = FormatMessage(
+				FORMAT_MESSAGE_FROM_SYSTEM, /* flags */
+				NULL, /* message source */
+				errorCode, /* the message (error) ID */
+				0, /* default language environment */
+				(LPTSTR) theInfo, /* the buffer */
+				sizeof(theInfo), /* the buffer size */
+				NULL); /* no additional format args. */
 
-        if (hDLL==NULL){
-            char errBuf[256];
-            unsigned int errorCode;
-
-            /* Get an error string from Win32 error code */
-            char theInfo[256]; /* Pointer to error text
-                                  from system */
-            int theLength; /* Length of error text */
-
-            errorCode = GetLastError();
-
-            theLength = FormatMessage(
-                FORMAT_MESSAGE_FROM_SYSTEM |
-                FORMAT_MESSAGE_IGNORE_INSERTS, /* flags */
-                NULL, /* message source */
-                errorCode, /* the message (error) ID */
-                0, /* default language environment */
-                (LPTSTR) theInfo, /* the buffer */
-                sizeof(theInfo), /* the buffer size */
-                NULL); /* no additional format args. */
-
-            /* Problem: could not get the error message.
-               This should not happen if called correctly. */
-            if (theLength == 0) {
-                PyOS_snprintf(errBuf, sizeof(errBuf),
-                      "DLL load failed with error code %d",
-                          errorCode);
-            } else {
-                size_t len;
-                /* For some reason a \r\n
-                   is appended to the text */
-                if (theLength >= 2 &&
-                    theInfo[theLength-2] == '\r' &&
-                    theInfo[theLength-1] == '\n') {
-                    theLength -= 2;
-                    theInfo[theLength] = '\0';
-                }
-                strcpy(errBuf, "DLL load failed: ");
-                len = strlen(errBuf);
-                strncpy(errBuf+len, theInfo,
-                    sizeof(errBuf)-len);
-                errBuf[sizeof(errBuf)-1] = '\0';
-            }
-            PyErr_SetString(PyExc_ImportError, errBuf);
-            return NULL;
-        } else {
-            char buffer[256];
+			/* Problem: could not get the error message.
+			   This should not happen if called correctly. */
+			if (theLength == 0) {
+				PyOS_snprintf(errBuf, sizeof(errBuf),
+				      "DLL load failed with error code %d",
+					      errorCode);
+			} else {
+				size_t len;
+				/* For some reason a \r\n
+				   is appended to the text */
+				if (theLength >= 2 &&
+				    theInfo[theLength-2] == '\r' &&
+				    theInfo[theLength-1] == '\n') {
+					theLength -= 2;
+					theInfo[theLength] = '\0';
+				}
+				strcpy(errBuf, "DLL load failed: ");
+				len = strlen(errBuf);
+				strncpy(errBuf+len, theInfo,
+					sizeof(errBuf)-len);
+				errBuf[sizeof(errBuf)-1] = '\0';
+			}
+			PyErr_SetString(PyExc_ImportError, errBuf);
+			return NULL;
+		} else {
+			char buffer[256];
 
 #ifdef _DEBUG
-            PyOS_snprintf(buffer, sizeof(buffer), "python%d%d_d.dll",
+			PyOS_snprintf(buffer, sizeof(buffer), "python%d%d_d.dll",
 #else
-            PyOS_snprintf(buffer, sizeof(buffer), "python%d%d.dll",
+			PyOS_snprintf(buffer, sizeof(buffer), "python%d%d.dll",
 #endif
-                          PY_MAJOR_VERSION,PY_MINOR_VERSION);
-            import_python = GetPythonImport(hDLL);
+				      PY_MAJOR_VERSION,PY_MINOR_VERSION);
+			import_python = GetPythonImport(hDLL);
 
-            if (import_python &&
-                strcasecmp(buffer,import_python)) {
-                PyOS_snprintf(buffer, sizeof(buffer),
-                              "Module use of %.150s conflicts "
-                              "with this version of Python.",
-                              import_python);
-                PyErr_SetString(PyExc_ImportError,buffer);
-                FreeLibrary(hDLL);
-                return NULL;
-            }
-        }
-        p = GetProcAddress(hDLL, funcname);
-    }
+			if (import_python &&
+			    strcasecmp(buffer,import_python)) {
+				PyOS_snprintf(buffer, sizeof(buffer),
+					      "Module use of %.150s conflicts "
+					      "with this version of Python.",
+					      import_python);
+				PyErr_SetString(PyExc_ImportError,buffer);
+				FreeLibrary(hDLL);
+				return NULL;
+			}
+		}
+		p = GetProcAddress(hDLL, funcname);
+	}
 
-    return p;
+	return p;
 }

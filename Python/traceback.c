@@ -128,7 +128,7 @@ _Py_DisplaySourceLine(PyObject *f, const char *filename, int lineno, int indent)
         return -1;
     /* This is needed by Emacs' compile command */
 #define FMT "  File \"%.500s\", line %d, in %.500s\n"
-    xfp = fopen(filename, "r" PY_STDIOTEXTMODE);
+    xfp = PyOS_fopen(filename, "r" PY_STDIOTEXTMODE);
     if (xfp == NULL) {
         /* Search tail of filename in sys.path before giving up */
         PyObject *path;
@@ -159,7 +159,7 @@ _Py_DisplaySourceLine(PyObject *f, const char *filename, int lineno, int indent)
                     if (len > 0 && namebuf[len-1] != SEP)
                         namebuf[len++] = SEP;
                     strcpy(namebuf+len, tail);
-                    xfp = fopen(namebuf, "r" PY_STDIOTEXTMODE);
+                    xfp = PyOS_fopen(namebuf, "r" PY_STDIOTEXTMODE);
                     if (xfp != NULL) {
                         break;
                     }

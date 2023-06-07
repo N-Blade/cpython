@@ -79,7 +79,7 @@ FILE *PyWin_FindRegisteredModule(const char *moduleName,
     }
     if (fdp->suffix == NULL)
         return NULL;
-    fp = fopen(pathBuf, fdp->mode);
+    fp = PyOS_fopen(pathBuf, fdp->mode);
     if (fp != NULL)
         *ppFileDesc = fdp;
     return fp;

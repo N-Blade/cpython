@@ -795,9 +795,15 @@ builtin_execfile(PyObject *self, PyObject *args)
 #endif
 
     if (exists) {
+#ifndef PY_EXTERNAL_FOPEN
+        /* BigWorld: Our PyOS_fopen() already does the equivalent of
+         * Py_BEGIN_ALLOW_THREADS and Py_END_ALLOW_THREADS*/
         Py_BEGIN_ALLOW_THREADS
-        fp = fopen(filename, "r" PY_STDIOTEXTMODE);
+#endif
+            fp = PyOS_fopen(filename, "r" PY_STDIOTEXTMODE);
+#ifndef PY_EXTERNAL_FOPEN
         Py_END_ALLOW_THREADS
+#endif
 
         if (fp == NULL) {
             exists = 0;

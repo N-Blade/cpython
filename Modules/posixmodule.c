@@ -50,6 +50,10 @@ corresponding Unix manual entries for more information on calls.");
 #define Py_UNICODE void
 #endif
 
+#ifdef PY_EXTERNAL_FOPEN
+#include "osdefs.h"
+#endif
+
 #if defined(PYOS_OS2)
 #define  INCL_DOS
 #define  INCL_DOSERRORS
@@ -2289,7 +2293,36 @@ posix_listdir(PyObject *self, PyObject *args)
 {
     /* XXX Should redo this putting the (now four) versions of opendir
        in separate files instead of having them all here... */
-#if defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
+#if defined(PY_EXTERNAL_FOPEN)
+#if defined(_WIN32)
+    char namebuf[MAX_PATH * 2 + 5];
+#else
+    char namebuf[PATH_MAX * 2 + 5];
+#endif
+    char* bufptr = namebuf;
+    int len = sizeof(namebuf) / sizeof(namebuf[0]);
+
+    if (!PyArg_ParseTuple(args, "et#:listdir",
+        Py_FileSystemDefaultEncoding, &bufptr, &len))
+        return NULL;
+    if (len > 0) {
+        char ch = namebuf[len - 1];
+
+#ifdef ALTSEP
+#define IS_SEPARATOR(ch) (ch == SEP || ch == ALTSEP || ch == ':')
+#else
+#define IS_SEPARATOR(ch) (ch == SEP || ch == ':')
+#endif
+
+        if IS_SEPARATOR(ch)
+            namebuf[--len] = '\0';
+
+#undef IS_SEPARATOR
+    }
+
+    return PyOS_listdir(namebuf);
+
+#elif defined(MS_WINDOWS) && !defined(HAVE_OPENDIR)
 
     PyObject *d, *v;
     HANDLE hFindFile;

@@ -175,6 +175,20 @@ PyAPI_FUNC(PyOS_sighandler_t) PyOS_setsig(int, PyOS_sighandler_t);
 /* Random */
 PyAPI_FUNC(int) _PyOS_URandom (void *buffer, Py_ssize_t size);
 
+/* Filename namespace (BigWorld addition) */
+#ifdef PY_EXTERNAL_FOPEN
+PyAPI_FUNC(int) PyOS_statType(const char* filename);
+PyAPI_FUNC(FILE*) PyOS_fopen(const char* filename, const char* mode);
+PyAPI_FUNC(PyObject*) PyOS_listdir(const char* dirname);
+PyAPI_FUNC(void*) PyOS_dlopen(const char* filename, int flags);
+#else
+#define PyOS_statType PyOS_statTypeDefault
+#define PyOS_fopen fopen
+#define PyOS_dlopen PyOS_dlopenDefault
+#endif // PY_EXTERNAL_FOPEN
+PyAPI_FUNC(int) PyOS_statTypeDefault(const char* filename);
+PyAPI_FUNC(void*) PyOS_dlopenDefault(const char* filename, int flags);
+
 #ifdef __cplusplus
 }
 #endif

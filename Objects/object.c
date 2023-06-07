@@ -1762,15 +1762,18 @@ merge_list_attr(PyObject* dict, PyObject* obj, const char *attrname)
     if (list == NULL)
         PyErr_Clear();
 
-    else if (PyList_Check(list)) {
+    else if (PySequence_Check(list)) {
         int i;
-        for (i = 0; i < PyList_GET_SIZE(list); ++i) {
-            PyObject *item = PyList_GET_ITEM(list, i);
+        for (i = 0; i < PySequence_Size(list); ++i) {
+            PyObject* item = PySequence_GetItem(list, i);
             if (PyString_Check(item)) {
                 result = PyDict_SetItem(dict, item, Py_None);
-                if (result < 0)
+                if (result < 0) {
+                    Py_DECREF(item);
                     break;
+                }
             }
+            Py_DECREF(item);
         }
         if (Py_Py3kWarningFlag &&
             (strcmp(attrname, "__members__") == 0 ||
