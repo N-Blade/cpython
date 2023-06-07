@@ -75,7 +75,6 @@ libpython*.dylib
 libpython*.dll
 platform
 pybuilddir.txt
-pyconfig.h
 python$
 python.bat
 python.exe

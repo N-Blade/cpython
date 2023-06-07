@@ -12,8 +12,8 @@
 #include <windows.h>
 
 // "activation context" magic - see dl_nt.c...
-extern ULONG_PTR _Py_ActivateActCtx();
-void _Py_DeactivateActCtx(ULONG_PTR cookie);
+//extern ULONG_PTR _Py_ActivateActCtx();
+//void _Py_DeactivateActCtx(ULONG_PTR cookie);
 
 const struct filedescr _PyImport_DynLoadFiletab[] = {
 #ifdef _DEBUG
